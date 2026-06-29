@@ -1,6 +1,7 @@
 package store
 
 import (
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -8,18 +9,48 @@ import (
 	"time"
 	"unicode"
 
+	_ "github.com/lib/pq"
 	"golang.org/x/crypto/bcrypt"
 )
 
 var usersFilePath = "store/users.json"
 var recordsFilePath = "store/records.json"
 
-var users []User
-var records []Record
+var (
+	users   []User
+	records []Record
+	db      *sql.DB
+	useDB   = false
+)
 
 func init() {
+	dbURL := os.Getenv("DATABASE_URL")
+	if dbURL != "" {
+		var err error
+		db, err = sql.Open("postgres", dbURL)
+		if err == nil {
+			err = db.Ping()
+			if err == nil {
+				useDB = true
+				createTables()
+				return
+			}
+			fmt.Println("数据库连接失败:", err)
+		}
+	}
 	loadUsers()
 	loadRecords()
+}
+
+func createTables() {
+	db.Exec("CREATE TABLE IF NOT EXISTS users (id SERIAL PRIMARY KEY, name VARCHAR(255) UNIQUE NOT NULL, password VARCHAR(255) NOT NULL)")
+	db.Exec(
+		"CREATE TABLE IF NOT EXISTS records (" +
+		"id SERIAL PRIMARY KEY, sort VARCHAR(10) NOT NULL, " +
+		"category VARCHAR(255) NOT NULL, amount DOUBLE PRECISION NOT NULL, " +
+		"note TEXT DEFAULT '', \"date\" TIMESTAMP NOT NULL, total DOUBLE PRECISION NOT NULL DEFAULT 0" +
+		")",
+	)
 }
 
 func loadUsers() {
@@ -67,6 +98,15 @@ func saveRecords() error {
 }
 
 func FindUserByName(name string) *User {
+	if useDB {
+		row := db.QueryRow("SELECT id, name, password FROM users WHERE name = $1", name)
+		var u User
+		err := row.Scan(&u.ID, &u.Name, &u.Password)
+		if err != nil {
+			return nil
+		}
+		return &u
+	}
 	for i := range users {
 		if users[i].Name == name {
 			return &users[i]
@@ -74,15 +114,16 @@ func FindUserByName(name string) *User {
 	}
 	return nil
 }
+
 func CreateUser(Name string, password string) (*User, error) {
 	if Name == "" || password == "" {
-		return nil, errors.New("用户名和密码不能为空！")
+		return nil, errors.New("用户名和密码不能为空")
 	}
 	if FindUserByName(Name) != nil {
-		return nil, errors.New("用户名已存在！")
+		return nil, errors.New("用户名已存在")
 	}
 	if len(password) < 8 {
-		return nil, errors.New("密码长度必须大于8！")
+		return nil, errors.New("密码长度必须大于8")
 	}
 	count := 0
 	count1 := 0
@@ -94,19 +135,32 @@ func CreateUser(Name string, password string) (*User, error) {
 		}
 	}
 	if count == 0 {
-		return nil, errors.New("密码必须包含字母！")
+		return nil, errors.New("密码必须包含字母")
 	}
 	if count1 == 0 {
-		return nil, errors.New("密码必须包含数字！")
+		return nil, errors.New("密码必须包含数字")
 	}
 	if (len(password) - count - count1) <= 0 {
-		return nil, errors.New("密码中必须包含特殊符号！")
+		return nil, errors.New("密码中必须包含特殊字符")
 	}
 	newPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
 		fmt.Println("密码加密失败")
 		return nil, err
 	}
+
+	if useDB {
+		var newID int
+		err := db.QueryRow(
+			"INSERT INTO users (name, password) VALUES ($1, $2) RETURNING id",
+			Name, string(newPassword),
+		).Scan(&newID)
+		if err != nil {
+			return nil, fmt.Errorf("创建用户失败: %v", err)
+		}
+		return &User{ID: newID, Name: Name, Password: string(newPassword)}, nil
+	}
+
 	newID := 1
 	if len(users) > 0 {
 		newID = users[len(users)-1].ID + 1
@@ -128,17 +182,18 @@ func CreateUser(Name string, password string) (*User, error) {
 func CheckUser(name string, password string, u *User) (*User, error) {
 	err := bcrypt.CompareHashAndPassword([]byte(u.Password), []byte(password))
 	if err != nil {
-		return nil, fmt.Errorf("密码错误！")
+		return nil, fmt.Errorf("密码错误")
 	}
 	if name != u.Name {
-		return nil, fmt.Errorf("用户名错误！")
+		return nil, fmt.Errorf("用户名错误")
 	}
 	return u, nil
 }
+
 func LoginService(username string, password string) (*User, error) {
 	user := FindUserByName(username)
 	if user == nil {
-		return nil, fmt.Errorf("用户不存在！")
+		return nil, fmt.Errorf("用户不存在")
 	}
 	user1, err := CheckUser(username, password, user)
 	if err != nil {
@@ -183,10 +238,7 @@ type Record struct {
 }
 
 func BoolSort(a string) bool {
-	if a == "Income" || a == "Expense" {
-		return true
-	}
-	return false
+	return a == "Income" || a == "Expense"
 }
 
 func contains(list []string, category string) bool {
@@ -205,7 +257,6 @@ var (
 
 func CreateRecord(sort string, category string, amount float64, note string, date time.Time, total float64) (Record, error) {
 	if amount <= 0 {
-		fmt.Println("金额必须大于0")
 		return Record{}, ErrInvalidAmount
 	}
 	if !BoolSort(sort) {
@@ -219,9 +270,20 @@ func CreateRecord(sort string, category string, amount float64, note string, dat
 		if !contains(ExpenseCategories, category) {
 			return Record{}, fmt.Errorf("无效支出类型'%s',必须是：%v", category, ExpenseCategories)
 		}
-	} else {
-		return Record{}, ErrInvalidSort
 	}
+
+	if useDB {
+		var newID int
+		err := db.QueryRow(
+			"INSERT INTO records (sort, category, amount, note, date, total) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id",
+			sort, category, amount, note, date, total,
+		).Scan(&newID)
+		if err != nil {
+			return Record{}, fmt.Errorf("创建记录失败: %v", err)
+		}
+		return Record{ID: newID, Sort: sort, Category: category, Amount: amount, Note: note, Date: date, Total: total}, nil
+	}
+
 	newID := 1
 	if len(records) > 0 {
 		newID = records[len(records)-1].ID + 1
@@ -237,47 +299,66 @@ func CreateRecord(sort string, category string, amount float64, note string, dat
 	}
 	records = append(records, record)
 	if err := saveRecords(); err != nil {
-		fmt.Println("保存记录失败:", err)
 		return Record{}, err
 	}
 	return record, nil
 }
 
 func ShowRecord(id int) (*Record, error) {
-	if len(records) <= 0 {
-		fmt.Println("现在没有任何记录")
-		return nil, errors.New("现在没有任何数据")
+	if useDB {
+		row := db.QueryRow("SELECT id, sort, category, amount, note, date, total FROM records WHERE id = $1", id)
+		var r Record
+		err := row.Scan(&r.ID, &r.Sort, &r.Category, &r.Amount, &r.Note, &r.Date, &r.Total)
+		if err != nil {
+			return nil, fmt.Errorf("未找到ID为%d的记录", id)
+		}
+		return &r, nil
 	}
-	fmt.Println("账单如下：")
 	for i := range records {
 		if records[i].ID == id {
 			return &records[i], nil
 		}
 	}
-	return nil, fmt.Errorf("未找到'ID'为%d的记录", id)
+	return nil, fmt.Errorf("未找到ID为%d的记录", id)
 }
 
 func DeleteRecord(id int) ([]Record, error) {
-	if len(records) == 0 {
-		return nil, errors.New("没有任何账单记录！")
+	if useDB {
+		_, err := db.Exec("DELETE FROM records WHERE id = $1", id)
+		if err != nil {
+			return nil, fmt.Errorf("删除记录失败: %v", err)
+		}
+		return GetAllRecords(), nil
 	}
 	for i, record := range records {
 		if record.ID == id {
-			fmt.Println("删除后账单如下：")
 			records = append(records[:i], records[i+1:]...)
 			if err := saveRecords(); err != nil {
-				fmt.Println("保存记录失败:", err)
 				return nil, err
 			}
 			return records, nil
 		}
 	}
-	return nil, fmt.Errorf("未找到 ID 为 %d 的账单记录，请检查后重试", id)
+	return nil, fmt.Errorf("未找到 ID 为 %d 的账单记录", id)
 }
 
 func GetAllRecords() []Record {
-	if len(records) == 0 {
-		return nil
+	if useDB {
+		rows, err := db.Query("SELECT id, sort, category, amount, note, date, total FROM records ORDER BY id")
+		if err != nil {
+			return nil
+		}
+		defer rows.Close()
+		var result []Record
+		for rows.Next() {
+			var r Record
+			err := rows.Scan(&r.ID, &r.Sort, &r.Category, &r.Amount, &r.Note, &r.Date, &r.Total)
+			if err != nil {
+				continue
+			}
+			result = append(result, r)
+		}
+		return result
 	}
 	return records
 }
