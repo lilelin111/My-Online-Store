@@ -11,3 +11,7 @@ Thumbs.db
 # IDE
 .idea/
 .vscode/
+
+# store data files
+store/records.json
+store/users.json

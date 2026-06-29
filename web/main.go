@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"myproject/store"
 	"net/http"
+	"os"
 	"strconv"
 )
 
@@ -165,6 +166,10 @@ func main() {
 	r.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		http.ServeFile(w, r, "web/static/index.html")
 	})
-	fmt.Println("服务器启动在 http://localhost:8080")
-	http.ListenAndServe(":8080", corsMiddleware(r))
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
+	fmt.Println("服务器启动在 :" + port)
+	http.ListenAndServe(":"+port, corsMiddleware(r))
 }
