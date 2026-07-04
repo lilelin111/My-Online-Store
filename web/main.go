@@ -6,7 +6,6 @@ import (
 	"myproject/store"
 	"net/http"
 	"os"
-	"strconv"
 )
 
 type Response struct {
@@ -104,31 +103,6 @@ func ShowRecord1(w http.ResponseWriter, _ *http.Request) {
 		return
 	}
 	RespondSuccess(w, http.StatusOK, "获取成功", Records)
-
-}
-func ShowRecord2(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	var rep struct {
-		ID int `json:"id"`
-	}
-	err := json.NewDecoder(r.Body).Decode(&rep)
-	if err != nil {
-		RespondError(w, http.StatusBadRequest, err.Error())
-		return
-	}
-	Records := store.GetAllRecords()
-	for i := range Records {
-		if Records[i].ID == rep.ID {
-			record, err2 := store.ShowRecord(Records[i].ID)
-			if err2 != nil {
-				RespondError(w, http.StatusBadRequest, err2.Error())
-				return
-			}
-			ResponseJSON(w, http.StatusOK, record)
-			return
-		}
-	}
-	RespondError(w, http.StatusNotFound, "未找到ID为"+strconv.Itoa(rep.ID)+"的记录")
 }
 func DeleteRecord1(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
@@ -140,19 +114,12 @@ func DeleteRecord1(w http.ResponseWriter, r *http.Request) {
 		RespondError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	Records := store.GetAllRecords()
-	for i := range Records {
-		if Records[i].ID == req.ID {
-			records1, err2 := store.DeleteRecord(Records[i].ID)
-			if err2 != nil {
-				RespondError(w, http.StatusBadRequest, err2.Error())
-				return
-			}
-			RespondSuccess(w, http.StatusOK, "删除成功", records1)
-			return
-		}
+	records1, err2 := store.DeleteRecord(req.ID)
+	if err2 != nil {
+		RespondError(w, http.StatusNotFound, err2.Error())
+		return
 	}
-	RespondError(w, http.StatusNotFound, "未找到ID为"+strconv.Itoa(req.ID)+"的记录")
+	RespondSuccess(w, http.StatusOK, "删除成功", records1)
 }
 func main() {
 	r := http.NewServeMux()
@@ -161,7 +128,6 @@ func main() {
 	r.HandleFunc("/api/CreateRecord", CreateRecord1)
 	r.HandleFunc("/api/ShowRecord1", ShowRecord1)
 	r.HandleFunc("/api/DeleteRecord1", DeleteRecord1)
-	r.HandleFunc("/api/ShowRecord2", ShowRecord2)
 	r.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("web/static"))))
 	r.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		http.ServeFile(w, r, "web/static/index.html")

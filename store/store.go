@@ -1,7 +1,6 @@
 package store
 
 import (
-	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -9,48 +8,18 @@ import (
 	"time"
 	"unicode"
 
-	_ "github.com/lib/pq"
 	"golang.org/x/crypto/bcrypt"
 )
 
 var usersFilePath = "store/users.json"
 var recordsFilePath = "store/records.json"
 
-var (
-	users   []User
-	records []Record
-	db      *sql.DB
-	useDB   = false
-)
+var users []User
+var records []Record
 
 func init() {
-	dbURL := os.Getenv("DATABASE_URL")
-	if dbURL != "" {
-		var err error
-		db, err = sql.Open("postgres", dbURL)
-		if err == nil {
-			err = db.Ping()
-			if err == nil {
-				useDB = true
-				createTables()
-				return
-			}
-			fmt.Println("数据库连接失败:", err)
-		}
-	}
 	loadUsers()
 	loadRecords()
-}
-
-func createTables() {
-	db.Exec("CREATE TABLE IF NOT EXISTS users (id SERIAL PRIMARY KEY, name VARCHAR(255) UNIQUE NOT NULL, password VARCHAR(255) NOT NULL)")
-	db.Exec(
-		"CREATE TABLE IF NOT EXISTS records (" +
-		"id SERIAL PRIMARY KEY, sort VARCHAR(10) NOT NULL, " +
-		"category VARCHAR(255) NOT NULL, amount DOUBLE PRECISION NOT NULL, " +
-		"note TEXT DEFAULT '', \"date\" TIMESTAMP NOT NULL, total DOUBLE PRECISION NOT NULL DEFAULT 0" +
-		")",
-	)
 }
 
 func loadUsers() {
@@ -98,15 +67,6 @@ func saveRecords() error {
 }
 
 func FindUserByName(name string) *User {
-	if useDB {
-		row := db.QueryRow("SELECT id, name, password FROM users WHERE name = $1", name)
-		var u User
-		err := row.Scan(&u.ID, &u.Name, &u.Password)
-		if err != nil {
-			return nil
-		}
-		return &u
-	}
 	for i := range users {
 		if users[i].Name == name {
 			return &users[i]
@@ -147,18 +107,6 @@ func CreateUser(Name string, password string) (*User, error) {
 	if err != nil {
 		fmt.Println("密码加密失败")
 		return nil, err
-	}
-
-	if useDB {
-		var newID int
-		err := db.QueryRow(
-			"INSERT INTO users (name, password) VALUES ($1, $2) RETURNING id",
-			Name, string(newPassword),
-		).Scan(&newID)
-		if err != nil {
-			return nil, fmt.Errorf("创建用户失败: %v", err)
-		}
-		return &User{ID: newID, Name: Name, Password: string(newPassword)}, nil
 	}
 
 	newID := 1
@@ -208,24 +156,9 @@ type User struct {
 	Password string `json:"-"`
 }
 
-var IncomeCategories = []string{
-	"工资",
-	"奖金",
-	"投资收益",
-	"兼职",
-	"其他收入",
-}
+var IncomeCategories = []string{"工资", "奖金", "投资收益", "兼职", "其他收入"}
 
-var ExpenseCategories = []string{
-	"餐饮",
-	"交通",
-	"购物",
-	"娱乐",
-	"医疗",
-	"教育",
-	"住房",
-	"其他支出",
-}
+var ExpenseCategories = []string{"餐饮", "交通", "购物", "娱乐", "医疗", "教育", "住房", "其他支出"}
 
 type Record struct {
 	ID       int       `json:"id"`
@@ -272,30 +205,12 @@ func CreateRecord(sort string, category string, amount float64, note string, dat
 		}
 	}
 
-	if useDB {
-		var newID int
-		err := db.QueryRow(
-			"INSERT INTO records (sort, category, amount, note, date, total) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id",
-			sort, category, amount, note, date, total,
-		).Scan(&newID)
-		if err != nil {
-			return Record{}, fmt.Errorf("创建记录失败: %v", err)
-		}
-		return Record{ID: newID, Sort: sort, Category: category, Amount: amount, Note: note, Date: date, Total: total}, nil
-	}
-
 	newID := 1
 	if len(records) > 0 {
 		newID = records[len(records)-1].ID + 1
 	}
 	record := Record{
-		ID:       newID,
-		Sort:     sort,
-		Category: category,
-		Amount:   amount,
-		Note:     note,
-		Date:     date,
-		Total:    total,
+		ID: newID, Sort: sort, Category: category, Amount: amount, Note: note, Date: date, Total: total,
 	}
 	records = append(records, record)
 	if err := saveRecords(); err != nil {
@@ -305,15 +220,6 @@ func CreateRecord(sort string, category string, amount float64, note string, dat
 }
 
 func ShowRecord(id int) (*Record, error) {
-	if useDB {
-		row := db.QueryRow("SELECT id, sort, category, amount, note, date, total FROM records WHERE id = $1", id)
-		var r Record
-		err := row.Scan(&r.ID, &r.Sort, &r.Category, &r.Amount, &r.Note, &r.Date, &r.Total)
-		if err != nil {
-			return nil, fmt.Errorf("未找到ID为%d的记录", id)
-		}
-		return &r, nil
-	}
 	for i := range records {
 		if records[i].ID == id {
 			return &records[i], nil
@@ -323,13 +229,6 @@ func ShowRecord(id int) (*Record, error) {
 }
 
 func DeleteRecord(id int) ([]Record, error) {
-	if useDB {
-		_, err := db.Exec("DELETE FROM records WHERE id = $1", id)
-		if err != nil {
-			return nil, fmt.Errorf("删除记录失败: %v", err)
-		}
-		return GetAllRecords(), nil
-	}
 	for i, record := range records {
 		if record.ID == id {
 			records = append(records[:i], records[i+1:]...)
@@ -343,22 +242,5 @@ func DeleteRecord(id int) ([]Record, error) {
 }
 
 func GetAllRecords() []Record {
-	if useDB {
-		rows, err := db.Query("SELECT id, sort, category, amount, note, date, total FROM records ORDER BY id")
-		if err != nil {
-			return nil
-		}
-		defer rows.Close()
-		var result []Record
-		for rows.Next() {
-			var r Record
-			err := rows.Scan(&r.ID, &r.Sort, &r.Category, &r.Amount, &r.Note, &r.Date, &r.Total)
-			if err != nil {
-				continue
-			}
-			result = append(result, r)
-		}
-		return result
-	}
 	return records
 }
