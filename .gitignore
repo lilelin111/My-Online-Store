@@ -15,3 +15,13 @@ Thumbs.db
 # store data files
 store/records.json
 store/users.json
+
+# Compiled binaries
+*.exe
+*.exe~
+# OS files
+Thumbs.db
+.DS_Store
+# IDE files
+.idea/
+*.swp
