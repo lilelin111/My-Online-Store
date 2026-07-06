@@ -77,13 +77,13 @@ func FindUserByName(name string) *User {
 
 func CreateUser(Name string, password string) (*User, error) {
 	if Name == "" || password == "" {
-		return nil, errors.New("用户名和密码不能为空")
+		return nil, errors.New("用户名和密码不能为空！")
 	}
 	if FindUserByName(Name) != nil {
-		return nil, errors.New("用户名已存在")
+		return nil, errors.New("用户名已存在！")
 	}
 	if len(password) < 8 {
-		return nil, errors.New("密码长度必须大于8")
+		return nil, errors.New("密码长度必须大于8！")
 	}
 	count := 0
 	count1 := 0
@@ -95,20 +95,19 @@ func CreateUser(Name string, password string) (*User, error) {
 		}
 	}
 	if count == 0 {
-		return nil, errors.New("密码必须包含字母")
+		return nil, errors.New("密码必须包含字母！")
 	}
 	if count1 == 0 {
-		return nil, errors.New("密码必须包含数字")
+		return nil, errors.New("密码必须包含数字！")
 	}
 	if (len(password) - count - count1) <= 0 {
-		return nil, errors.New("密码中必须包含特殊字符")
+		return nil, errors.New("密码中必须包含特殊符号！")
 	}
 	newPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
 		fmt.Println("密码加密失败")
 		return nil, err
 	}
-
 	newID := 1
 	if len(users) > 0 {
 		newID = users[len(users)-1].ID + 1
@@ -130,10 +129,10 @@ func CreateUser(Name string, password string) (*User, error) {
 func CheckUser(name string, password string, u *User) (*User, error) {
 	err := bcrypt.CompareHashAndPassword([]byte(u.Password), []byte(password))
 	if err != nil {
-		return nil, fmt.Errorf("密码错误")
+		return nil, fmt.Errorf("密码错误！")
 	}
 	if name != u.Name {
-		return nil, fmt.Errorf("用户名错误")
+		return nil, fmt.Errorf("用户名错误！")
 	}
 	return u, nil
 }
@@ -141,7 +140,7 @@ func CheckUser(name string, password string, u *User) (*User, error) {
 func LoginService(username string, password string) (*User, error) {
 	user := FindUserByName(username)
 	if user == nil {
-		return nil, fmt.Errorf("用户不存在")
+		return nil, fmt.Errorf("用户不存在！")
 	}
 	user1, err := CheckUser(username, password, user)
 	if err != nil {
@@ -156,9 +155,13 @@ type User struct {
 	Password string `json:"-"`
 }
 
-var IncomeCategories = []string{"工资", "奖金", "投资收益", "兼职", "其他收入"}
+var IncomeCategories = []string{
+	"工资", "奖金", "投资收益", "兼职", "其他收入",
+}
 
-var ExpenseCategories = []string{"餐饮", "交通", "购物", "娱乐", "医疗", "教育", "住房", "其他支出"}
+var ExpenseCategories = []string{
+	"餐饮", "交通", "购物", "娱乐", "医疗", "教育", "住房", "其他支出",
+}
 
 type Record struct {
 	ID       int       `json:"id"`
@@ -210,37 +213,54 @@ func CreateRecord(sort string, category string, amount float64, note string, dat
 		newID = records[len(records)-1].ID + 1
 	}
 	record := Record{
-		ID: newID, Sort: sort, Category: category, Amount: amount, Note: note, Date: date, Total: total,
+		ID:       newID,
+		Sort:     sort,
+		Category: category,
+		Amount:   amount,
+		Note:     note,
+		Date:     date,
+		Total:    total,
 	}
 	records = append(records, record)
 	if err := saveRecords(); err != nil {
+		fmt.Println("保存记录失败:", err)
 		return Record{}, err
 	}
 	return record, nil
 }
 
 func ShowRecord(id int) (*Record, error) {
+	if len(records) <= 0 {
+		return nil, errors.New("现在没有任何数据")
+	}
 	for i := range records {
 		if records[i].ID == id {
 			return &records[i], nil
 		}
 	}
-	return nil, fmt.Errorf("未找到ID为%d的记录", id)
+	return nil, fmt.Errorf("未找到'ID'为%d的记录", id)
 }
 
 func DeleteRecord(id int) ([]Record, error) {
+	if len(records) == 0 {
+		return nil, errors.New("没有任何账单记录！")
+	}
 	for i, record := range records {
 		if record.ID == id {
 			records = append(records[:i], records[i+1:]...)
 			if err := saveRecords(); err != nil {
+				fmt.Println("保存记录失败:", err)
 				return nil, err
 			}
 			return records, nil
 		}
 	}
-	return nil, fmt.Errorf("未找到 ID 为 %d 的账单记录", id)
+	return nil, fmt.Errorf("未找到 ID 为 %d 的账单记录，请检查后重试", id)
 }
 
 func GetAllRecords() []Record {
+	if len(records) == 0 {
+		return nil
+	}
 	return records
 }
