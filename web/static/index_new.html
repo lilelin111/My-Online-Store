@@ -240,7 +240,7 @@
                 if (isNaN(amount) || amount <= 0) { alert('金额必须大于0'); return; }
                 if (isNaN(total)) { alert('余额不能为空'); return; }
                 try {
-                    const res = await fetch(`${API_BASE}/CreateRecord`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sort, category, amount, note, date: new Date(dateStr).toISOString(), total }) });
+                    const res = await fetch(`${API_BASE}/CreateRecord`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user_id: user.id, sort, category, amount, note, date: new Date(dateStr).toISOString(), total }) });
                     const data = await res.json();
                     if (data.success) { alert('保存成功'); document.getElementById('add-form').reset(); document.querySelector('input[name="sort"][value="Income"]').checked = true; updateCategories(); }
                     else alert(data.message);
@@ -273,7 +273,7 @@
 
         async function loadRecords() {
             try {
-                const res = await fetch(`${API_BASE}/ShowRecord1`, { method: 'POST', headers: { 'Content-Type': 'application/json' } });
+                const res = await fetch(`${API_BASE}/ShowRecord1`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user_id: user.id }) });
                 const data = await res.json();
                 if (data.success) { renderRecords(data.data); updateStats(data.data); }
                 else { renderRecords([]); updateStats([]); }
@@ -305,7 +305,7 @@
         async function deleteRecord(id) {
             if (!confirm('确定删除？')) return;
             try {
-                const res = await fetch(`${API_BASE}/DeleteRecord1`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) });
+                const res = await fetch(`${API_BASE}/DeleteRecord1`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, user_id: user.id }) });
                 const data = await res.json();
                 if (data.success) loadRecords(); else alert(data.message);
             } catch (err) { alert('网络错误'); }

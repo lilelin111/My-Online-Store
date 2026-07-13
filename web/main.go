@@ -1,9 +1,9 @@
-package main
+﻿package main
 
 import (
 	"encoding/json"
 	"fmt"
-	"myproject/store" // 注意：请确保这里的模块名与你的 go.mod 一致
+	"myproject/store"
 	"net/http"
 	"strconv"
 )
@@ -62,7 +62,7 @@ func Register(w http.ResponseWriter, r *http.Request) {
 		RespondError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	RespondSuccess(w, http.StatusOK, "注册成功", user)
+	RespondSuccess(w, http.StatusOK, "注冊成功", user)
 }
 
 func Login(w http.ResponseWriter, r *http.Request) {
@@ -90,7 +90,11 @@ func CreateRecord1(w http.ResponseWriter, r *http.Request) {
 		RespondError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	record, err := store.CreateRecord(req.Sort, req.Category, req.Amount, req.Note, req.Date, req.Total)
+	if req.UserID <= 0 {
+		RespondError(w, http.StatusBadRequest, "用户ID不能为空")
+		return
+	}
+	record, err := store.CreateRecord(req.UserID, req.Sort, req.Category, req.Amount, req.Note, req.Date, req.Total)
 	if err != nil {
 		RespondError(w, http.StatusBadRequest, err.Error())
 		return
@@ -98,27 +102,40 @@ func CreateRecord1(w http.ResponseWriter, r *http.Request) {
 	RespondSuccess(w, http.StatusOK, "创建成功", record)
 }
 
-func ShowRecord1(w http.ResponseWriter, _ *http.Request) {
-	Records := store.GetAllRecords()
-	if len(Records) == 0 {
-		RespondError(w, http.StatusBadRequest, "不存在账单！")
+func ShowRecord1(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		UserID int `json:"user_id"`
+	}
+	err := json.NewDecoder(r.Body).Decode(&req)
+	if err != nil {
+		RespondError(w, http.StatusBadRequest, err.Error())
 		return
 	}
+	if req.UserID <= 0 {
+		RespondError(w, http.StatusBadRequest, "用户ID不能为空")
+		return
+	}
+	Records := store.GetRecordsByUserID(req.UserID)
 	RespondSuccess(w, http.StatusOK, "获取成功", Records)
 }
 
 func ShowRecord2(w http.ResponseWriter, r *http.Request) {
 	var rep struct {
-		ID int `json:"id"`
+		ID     int `json:"id"`
+		UserID int `json:"user_id"`
 	}
 	err := json.NewDecoder(r.Body).Decode(&rep)
 	if err != nil {
 		RespondError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	Records := store.GetAllRecords()
+	Records := store.GetRecordsByUserID(rep.UserID)
 	for i := range Records {
 		if Records[i].ID == rep.ID {
+			if Records[i].UserID != rep.UserID {
+				RespondError(w, http.StatusForbidden, "无权访问记录")
+				return
+			}
 			record, err2 := store.ShowRecord(Records[i].ID)
 			if err2 != nil {
 				RespondError(w, http.StatusBadRequest, err2.Error())
@@ -133,17 +150,22 @@ func ShowRecord2(w http.ResponseWriter, r *http.Request) {
 
 func DeleteRecord1(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		ID int `json:"id"`
+		ID     int `json:"id"`
+		UserID int `json:"user_id"`
 	}
 	err := json.NewDecoder(r.Body).Decode(&req)
 	if err != nil {
 		RespondError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	Records := store.GetAllRecords()
+	if req.UserID <= 0 {
+		RespondError(w, http.StatusBadRequest, "用户ID不能为空")
+		return
+	}
+	Records := store.GetRecordsByUserID(req.UserID)
 	for i := range Records {
 		if Records[i].ID == req.ID {
-			records1, err2 := store.DeleteRecord(Records[i].ID)
+			records1, err2 := store.DeleteRecord(Records[i].ID, req.UserID)
 			if err2 != nil {
 				RespondError(w, http.StatusBadRequest, err2.Error())
 				return

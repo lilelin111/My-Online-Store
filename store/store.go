@@ -165,6 +165,7 @@ var ExpenseCategories = []string{
 
 type Record struct {
 	ID       int       `json:"id"`
+	UserID   int       `json:"user_id"`
 	Sort     string    `json:"sort"`
 	Category string    `json:"category"`
 	Amount   float64   `json:"amount"`
@@ -191,7 +192,7 @@ var (
 	ErrInvalidSort   = errors.New("无效收支类型，必须为'Income'或'Expense'")
 )
 
-func CreateRecord(sort string, category string, amount float64, note string, date time.Time, total float64) (Record, error) {
+func CreateRecord(userID int, sort string, category string, amount float64, note string, date time.Time, total float64) (Record, error) {
 	if amount <= 0 {
 		return Record{}, ErrInvalidAmount
 	}
@@ -214,6 +215,7 @@ func CreateRecord(sort string, category string, amount float64, note string, dat
 	}
 	record := Record{
 		ID:       newID,
+		UserID:   userID,
 		Sort:     sort,
 		Category: category,
 		Amount:   amount,
@@ -241,12 +243,23 @@ func ShowRecord(id int) (*Record, error) {
 	return nil, fmt.Errorf("未找到'ID'为%d的记录", id)
 }
 
-func DeleteRecord(id int) ([]Record, error) {
+func DeleteRecord(id int, userID int) ([]Record, error) {
 	if len(records) == 0 {
 		return nil, errors.New("没有任何账单记录！")
 	}
 	for i, record := range records {
-		if record.ID == id {
+		if record.ID == id && record.UserID == userID {
+			records = append(records[:i], records[i+1:]...)
+			if err := saveRecords(); err != nil {
+				fmt.Println("保å˜è®°å½•å¤±è´¥:", err)
+				return nil, err
+			}
+			return records, nil
+		}
+	}
+	// backward compatibility: records without UserID
+	for i, record := range records {
+		if record.ID == id && record.UserID == 0 {
 			records = append(records[:i], records[i+1:]...)
 			if err := saveRecords(); err != nil {
 				fmt.Println("保存记录失败:", err)
@@ -258,9 +271,12 @@ func DeleteRecord(id int) ([]Record, error) {
 	return nil, fmt.Errorf("未找到 ID 为 %d 的账单记录，请检查后重试", id)
 }
 
-func GetAllRecords() []Record {
-	if len(records) == 0 {
-		return nil
+func GetRecordsByUserID(userID int) []Record {
+	var userRecords []Record
+	for _, r := range records {
+		if r.UserID == userID {
+			userRecords = append(userRecords, r)
+		}
 	}
-	return records
+	return userRecords
 }
