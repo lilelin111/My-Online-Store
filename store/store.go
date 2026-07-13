@@ -1,4 +1,4 @@
-package store
+﻿package store
 
 import (
 	"encoding/json"
@@ -251,7 +251,7 @@ func DeleteRecord(id int, userID int) ([]Record, error) {
 		if record.ID == id && record.UserID == userID {
 			records = append(records[:i], records[i+1:]...)
 			if err := saveRecords(); err != nil {
-				fmt.Println("保å˜è®°å½•å¤±è´¥:", err)
+				fmt.Println("保存记录失败:", err)
 				return nil, err
 			}
 			return records, nil
