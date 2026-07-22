@@ -14,6 +14,21 @@ import (
 var usersFilePath = "store/users.json"
 var recordsFilePath = "store/records.json"
 
+type User struct {
+	ID       int    `json:"id"`
+	Name     string `json:"name"`
+	Password string `json:"-"`
+}
+type Record struct {
+	ID       int       `json:"id"`
+	UserID   int       `json:"user_id"`
+	Sort     string    `json:"sort"`
+	Category string    `json:"category"`
+	Amount   float64   `json:"amount"`
+	Note     string    `json:"note"`
+	Date     time.Time `json:"date"`
+}
+
 var users []User
 var records []Record
 
@@ -124,6 +139,7 @@ func CreateUser(Name string, password string) (*User, error) {
 		return nil, err
 	}
 	return user1, nil
+
 }
 
 func CheckUser(name string, password string, u *User) (*User, error) {
@@ -149,29 +165,12 @@ func LoginService(username string, password string) (*User, error) {
 	return user1, nil
 }
 
-type User struct {
-	ID       int    `json:"id"`
-	Name     string `json:"name"`
-	Password string `json:"-"`
-}
-
 var IncomeCategories = []string{
 	"工资", "奖金", "投资收益", "兼职", "其他收入",
 }
 
 var ExpenseCategories = []string{
 	"餐饮", "交通", "购物", "娱乐", "医疗", "教育", "住房", "其他支出",
-}
-
-type Record struct {
-	ID       int       `json:"id"`
-	UserID   int       `json:"user_id"`
-	Sort     string    `json:"sort"`
-	Category string    `json:"category"`
-	Amount   float64   `json:"amount"`
-	Note     string    `json:"note"`
-	Date     time.Time `json:"date"`
-	Total    float64   `json:"total"`
 }
 
 func BoolSort(a string) bool {
@@ -191,8 +190,9 @@ var (
 	ErrInvalidAmount = errors.New("金额必须大于0")
 	ErrInvalidSort   = errors.New("无效收支类型，必须为'Income'或'Expense'")
 )
+var total = 0.0
 
-func CreateRecord(userID int, sort string, category string, amount float64, note string, date time.Time, total float64) (Record, error) {
+func CreateRecord(userID int, sort string, category string, amount float64, note string, date time.Time) (Record, error) {
 	if amount <= 0 {
 		return Record{}, ErrInvalidAmount
 	}
@@ -203,10 +203,12 @@ func CreateRecord(userID int, sort string, category string, amount float64, note
 		if !contains(IncomeCategories, category) {
 			return Record{}, fmt.Errorf("无效收入类型'%s',必须是：%v", category, IncomeCategories)
 		}
+		total += amount
 	} else if sort == "Expense" {
 		if !contains(ExpenseCategories, category) {
 			return Record{}, fmt.Errorf("无效支出类型'%s',必须是：%v", category, ExpenseCategories)
 		}
+		total -= amount
 	}
 
 	newID := 1
@@ -221,7 +223,6 @@ func CreateRecord(userID int, sort string, category string, amount float64, note
 		Amount:   amount,
 		Note:     note,
 		Date:     date,
-		Total:    total,
 	}
 	records = append(records, record)
 	if err := saveRecords(); err != nil {
@@ -231,7 +232,7 @@ func CreateRecord(userID int, sort string, category string, amount float64, note
 	return record, nil
 }
 
-func ShowRecord(id int) (*Record, error) {
+func ShowRecord1(id int) (*Record, error) {
 	if len(records) <= 0 {
 		return nil, errors.New("现在没有任何数据")
 	}
@@ -242,8 +243,16 @@ func ShowRecord(id int) (*Record, error) {
 	}
 	return nil, fmt.Errorf("未找到'ID'为%d的记录", id)
 }
-
-func DeleteRecord(id int, userID int) ([]Record, error) {
+func GetRecordsByUserID(userID int) []Record {
+	var userRecords []Record
+	for _, r := range records {
+		if r.UserID == userID {
+			userRecords = append(userRecords, r)
+		}
+	}
+	return userRecords
+}
+func DeleteRecord(id int, userID int, sort string) ([]Record, error) {
 	if len(records) == 0 {
 		return nil, errors.New("没有任何账单记录！")
 	}
@@ -257,9 +266,8 @@ func DeleteRecord(id int, userID int) ([]Record, error) {
 			return records, nil
 		}
 	}
-	// backward compatibility: records without UserID
 	for i, record := range records {
-		if record.ID == id && record.UserID == 0 {
+		if record.Sort == sort && record.UserID == userID {
 			records = append(records[:i], records[i+1:]...)
 			if err := saveRecords(); err != nil {
 				fmt.Println("保存记录失败:", err)
@@ -269,14 +277,4 @@ func DeleteRecord(id int, userID int) ([]Record, error) {
 		}
 	}
 	return nil, fmt.Errorf("未找到 ID 为 %d 的账单记录，请检查后重试", id)
-}
-
-func GetRecordsByUserID(userID int) []Record {
-	var userRecords []Record
-	for _, r := range records {
-		if r.UserID == userID {
-			userRecords = append(userRecords, r)
-		}
-	}
-	return userRecords
 }

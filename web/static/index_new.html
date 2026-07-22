@@ -27,14 +27,14 @@
         .error { color: #e74c3c; font-size: 13px; text-align: center; min-height: 18px; margin-top: -10px; }
         
         #dashboard-page { min-height: 100vh; display: flex; flex-direction: column; align-items: center; padding: 40px; }
-        #dashboard-page header { background: linear-gradient(90deg, #6B7BFF, #9370DB); width: 100%; max-width: 700px; padding: 20px 30px; border-radius: 12px 12px 0 0; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 4px 20px rgba(107,123,255,0.3); }
+        #dashboard-page header { background: linear-gradient(90deg, #6B7BFF, #9370DB); width: 100%; max-width: 900px; padding: 20px 30px; border-radius: 12px 12px 0 0; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 4px 20px rgba(107,123,255,0.3); }
         #dashboard-page header h1 { color: white; font-size: 24px; font-weight: 600; }
         .header-right { display: flex; align-items: center; gap: 15px; }
         #user-name { color: rgba(255,255,255,0.9); font-size: 16px; }
         .logout { padding: 8px 20px; border: 1px solid rgba(255,255,255,0.5); color: white; background: rgba(255,255,255,0.1); border-radius: 20px; cursor: pointer; font-size: 14px; transition: all 0.3s; }
         .logout:hover { background: rgba(255,255,255,0.2); }
         
-        .main-content { background: white; width: 100%; max-width: 700px; border-radius: 0 0 12px 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); overflow: hidden; }
+        .main-content { background: white; width: 100%; max-width: 900px; border-radius: 0 0 12px 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); overflow: hidden; }
         .tabs-bar { display: flex; border-bottom: 1px solid #eee; }
         .tab-btn { flex: 1; padding: 18px; background: none; border: none; font-size: 16px; color: #999; cursor: pointer; position: relative; transition: color 0.3s; }
         .tab-btn.active { color: #6B7BFF; }
@@ -63,11 +63,14 @@
         .stat-value.expense { color: #e53935; }
         .stat-value.balance { color: #1976d2; }
         
-        .records-table { width: 100%; border-collapse: collapse; }
-        .records-table th, .records-table td { padding: 12px; text-align: left; border-bottom: 1px solid #eee; }
+        .table-container { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+        .records-table { width: 100%; border-collapse: collapse; min-width: 600px; }
+        .records-table th, .records-table td { padding: 12px; text-align: left; border-bottom: 1px solid #eee; white-space: nowrap; }
         .records-table th { background: #f8f9fa; font-weight: 600; color: #666; font-size: 14px; }
         .records-table td { color: #333; font-size: 14px; }
-        .delete { padding: 5px 12px; background: #ffebee; color: #e53935; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; transition: all 0.3s; }
+        .records-table td.note-cell { max-width: 200px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .records-table td.amount-cell { font-family: monospace; }
+        .delete { padding: 5px 12px; background: #ffebee; color: #e53935; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; transition: all 0.3s; white-space: nowrap; }
         .delete:hover { background: #e53935; color: white; }
         .empty { text-align: center; padding: 40px; color: #999; font-size: 16px; }
     </style>
@@ -134,10 +137,6 @@
                         <label>日期</label>
                         <input type="datetime-local" id="date" required>
                     </div>
-                    <div class="form-item">
-                        <label>余额</label>
-                        <input type="number" id="total" step="0.01" placeholder="当前余额" required>
-                    </div>
                     <button type="submit" class="save-btn">保存</button>
                 </form>
             </div>
@@ -147,10 +146,17 @@
                     <div class="stat-item"><span class="stat-label">总支出</span><span class="stat-value expense" id="total-expense">¥0.00</span></div>
                     <div class="stat-item"><span class="stat-label">结余</span><span class="stat-value balance" id="balance">¥0.00</span></div>
                 </div>
-                <table class="records-table">
-                    <thead><tr><th>类型</th><th>分类</th><th>金额</th><th>备注</th><th>日期</th><th>操作</th></tr></thead>
-                    <tbody id="records-body"></tbody>
-                </table>
+                <div style="margin-bottom: 15px; display: flex; gap: 10px;">
+                    <input type="text" id="search-input" placeholder="搜索类型、分类或备注..." style="flex: 1; padding: 10px; border: 1px solid #eee; border-radius: 8px; font-size: 14px;">
+                    <button id="search-btn" style="padding: 10px 20px; background: linear-gradient(90deg, #6B7BFF, #9370DB); color: white; border: none; border-radius: 8px; cursor: pointer;">搜索</button>
+                    <button id="clear-search-btn" style="padding: 10px 20px; background: #f0f0f0; color: #666; border: none; border-radius: 8px; cursor: pointer;">清空</button>
+                </div>
+                <div class="table-container">
+                    <table class="records-table">
+                        <thead><tr><th>类型</th><th>分类</th><th>金额</th><th>备注</th><th>日期</th><th>操作</th></tr></thead>
+                        <tbody id="records-body"></tbody>
+                    </table>
+                </div>
                 <div id="empty" class="empty">暂无记录</div>
             </div>
         </div>
@@ -160,6 +166,7 @@
         const API_BASE = '/api';
         const IncomeCategories = ['工资','奖金','投资收益','兼职','其他收入'];
         const ExpenseCategories = ['餐饮','交通','购物','娱乐','医疗','教育','住房','其他支出'];
+        let user = null;
 
         function init() {
             bindAuthTabs(); bindForms(); bindDashboard(); updateCategories(); checkLogin();
@@ -202,7 +209,7 @@
                 try {
                     const res = await fetch(`${API_BASE}/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username, password }) });
                     const data = await res.json();
-                    if (data.success) { localStorage.setItem('user', JSON.stringify(data.data)); document.getElementById('login-form').reset(); showDashboard(); }
+                    if (data.success) { user = data.data; localStorage.setItem('user', JSON.stringify(user)); document.getElementById('login-form').reset(); showDashboard(); }
                     else errorEl.textContent = data.message;
                 } catch (err) { errorEl.textContent = '网络错误'; }
             });
@@ -228,6 +235,10 @@
 
             document.querySelectorAll('input[name="sort"]').forEach(radio => { radio.addEventListener('change', updateCategories); });
 
+            document.getElementById('search-btn').addEventListener('click', searchRecords);
+            document.getElementById('clear-search-btn').addEventListener('click', clearSearch);
+            document.getElementById('search-input').addEventListener('keyup', (e) => { if (e.key === 'Enter') searchRecords(); });
+
             document.getElementById('add-form').addEventListener('submit', async (e) => {
                 e.preventDefault();
                 const sort = document.querySelector('input[name="sort"]:checked').value;
@@ -235,16 +246,15 @@
                 const amount = parseFloat(document.getElementById('amount').value);
                 const note = document.getElementById('note').value;
                 const dateStr = document.getElementById('date').value;
-                const total = parseFloat(document.getElementById('total').value);
                 if (!category) { alert('请选择分类'); return; }
                 if (isNaN(amount) || amount <= 0) { alert('金额必须大于0'); return; }
-                if (isNaN(total)) { alert('余额不能为空'); return; }
                 try {
-                    const res = await fetch(`${API_BASE}/CreateRecord`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user_id: user.id, sort, category, amount, note, date: new Date(dateStr).toISOString(), total }) });
+                    if (!user || !user.id) { alert('请先登录'); return; }
+                    const res = await fetch(`${API_BASE}/CreateRecord`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user_id: user.id, sort, category, amount, note, date: new Date(dateStr).toISOString() }) });
                     const data = await res.json();
                     if (data.success) { alert('保存成功'); document.getElementById('add-form').reset(); document.querySelector('input[name="sort"][value="Income"]').checked = true; updateCategories(); }
                     else alert(data.message);
-                } catch (err) { alert('网络错误'); }
+                } catch (err) { alert('网络错误: ' + err.message); }
             });
         }
 
@@ -261,23 +271,64 @@
             });
         }
 
-        function checkLogin() { if (localStorage.getItem('user')) showDashboard(); }
+        function checkLogin() {
+            try {
+                const userData = localStorage.getItem('user');
+                if (userData) {
+                    const parsed = JSON.parse(userData);
+                    if (parsed && parsed.id) {
+                        showDashboard();
+                    } else {
+                        localStorage.removeItem('user');
+                    }
+                }
+            } catch (e) {
+                localStorage.removeItem('user');
+            }
+        }
 
         function showDashboard() {
-            const user = JSON.parse(localStorage.getItem('user'));
-            document.getElementById('user-name').textContent = '欢迎, ' + user.name;
-            document.getElementById('auth-page').classList.add('hidden');
-            document.getElementById('dashboard-page').classList.remove('hidden');
-            document.getElementById('date').value = new Date().toISOString().slice(0, 16);
+            try {
+                user = JSON.parse(localStorage.getItem('user'));
+                if (!user || !user.name) {
+                    throw new Error('用户数据无效');
+                }
+                document.getElementById('user-name').textContent = '欢迎, ' + user.name;
+                document.getElementById('auth-page').classList.add('hidden');
+                document.getElementById('dashboard-page').classList.remove('hidden');
+                document.getElementById('date').value = new Date().toISOString().slice(0, 16);
+            } catch (e) {
+                localStorage.removeItem('user');
+                document.getElementById('auth-page').classList.remove('hidden');
+                document.getElementById('dashboard-page').classList.add('hidden');
+            }
         }
 
         async function loadRecords() {
             try {
+                if (!user || !user.id) { alert('请先登录'); return; }
                 const res = await fetch(`${API_BASE}/ShowRecord1`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user_id: user.id }) });
                 const data = await res.json();
-                if (data.success) { renderRecords(data.data); updateStats(data.data); }
+                if (data.success) { renderRecords(data.data || []); updateStats(data.data || []); }
                 else { renderRecords([]); updateStats([]); }
             } catch (err) { renderRecords([]); updateStats([]); }
+        }
+
+        async function searchRecords() {
+            try {
+                if (!user || !user.id) { alert('请先登录'); return; }
+                const keyword = document.getElementById('search-input').value.trim();
+                if (!keyword) { loadRecords(); return; }
+                const res = await fetch(`${API_BASE}/ShowRecord2`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user_id: user.id, keyword }) });
+                const data = await res.json();
+                if (data.success) { renderRecords(data.data || []); }
+                else { renderRecords([]); }
+            } catch (err) { alert('搜索失败: ' + err.message); }
+        }
+
+        function clearSearch() {
+            document.getElementById('search-input').value = '';
+            loadRecords();
         }
 
         function renderRecords(records) {
@@ -289,14 +340,16 @@
             records.forEach(record => {
                 const row = document.createElement('tr');
                 const date = new Date(record.date).toLocaleString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
-                row.innerHTML = `<td><span style="color:${record.sort === 'Income' ? '#4caf50' : '#e53935'};font-weight:bold;">${record.sort === 'Income' ? '收入' : '支出'}</span></td><td>${record.category}</td><td><span style="color:${record.sort === 'Income' ? '#4caf50' : '#e53935'};">¥${record.amount.toFixed(2)}</span></td><td>${record.note || '-'}</td><td>${date}</td><td><button class="delete" onclick="deleteRecord(${record.id})">删除</button></td>`;
+                row.innerHTML = `<td><span style="color:${record.sort === 'Income' ? '#4caf50' : '#e53935'};font-weight:bold;">${record.sort === 'Income' ? '收入' : '支出'}</span></td><td>${record.category}</td><td class="amount-cell"><span style="color:${record.sort === 'Income' ? '#4caf50' : '#e53935'};">¥${record.amount.toFixed(2)}</span></td><td class="note-cell" title="${record.note || ''}">${record.note || '-'}</td><td>${date}</td><td><button class="delete" onclick="deleteRecord(${record.id})">删除</button></td>`;
                 tbody.appendChild(row);
             });
         }
 
         function updateStats(records) {
             let income = 0, expense = 0;
-            records.forEach(r => { if (r.sort === 'Income') income += r.amount; else expense += r.amount; });
+            if (records && records.length > 0) {
+                records.forEach(r => { if (r.sort === 'Income') income += r.amount; else expense += r.amount; });
+            }
             document.getElementById('total-income').textContent = '¥' + income.toFixed(2);
             document.getElementById('total-expense').textContent = '¥' + expense.toFixed(2);
             document.getElementById('balance').textContent = '¥' + (income - expense).toFixed(2);
@@ -305,10 +358,11 @@
         async function deleteRecord(id) {
             if (!confirm('确定删除？')) return;
             try {
+                if (!user || !user.id) { alert('请先登录'); return; }
                 const res = await fetch(`${API_BASE}/DeleteRecord1`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, user_id: user.id }) });
                 const data = await res.json();
                 if (data.success) loadRecords(); else alert(data.message);
-            } catch (err) { alert('网络错误'); }
+            } catch (err) { alert('网络错误: ' + err.message); }
         }
 
         document.addEventListener('DOMContentLoaded', init);

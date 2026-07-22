@@ -6,6 +6,7 @@ import (
 	"myproject/store"
 	"net/http"
 	"strconv"
+	"strings"
 )
 
 type Response struct {
@@ -94,7 +95,7 @@ func CreateRecord1(w http.ResponseWriter, r *http.Request) {
 		RespondError(w, http.StatusBadRequest, "用户ID不能为空")
 		return
 	}
-	record, err := store.CreateRecord(req.UserID, req.Sort, req.Category, req.Amount, req.Note, req.Date, req.Total)
+	record, err := store.CreateRecord(req.UserID, req.Sort, req.Category, req.Amount, req.Note, req.Date)
 	if err != nil {
 		RespondError(w, http.StatusBadRequest, err.Error())
 		return
@@ -121,12 +122,31 @@ func ShowRecord1(w http.ResponseWriter, r *http.Request) {
 
 func ShowRecord2(w http.ResponseWriter, r *http.Request) {
 	var rep struct {
-		ID     int `json:"id"`
-		UserID int `json:"user_id"`
+		ID      int    `json:"id"`
+		UserID  int    `json:"user_id"`
+		Keyword string `json:"keyword"`
 	}
 	err := json.NewDecoder(r.Body).Decode(&rep)
 	if err != nil {
 		RespondError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if rep.Keyword != "" {
+		records := store.GetRecordsByUserID(rep.UserID)
+		result := make([]store.Record, 0)
+		for _, record := range records {
+			sortName := record.Sort
+			if record.Sort == "Income" {
+				sortName = "收入"
+			}
+			if record.Sort == "Expense" {
+				sortName = "支出"
+			}
+			if strings.Contains(sortName, rep.Keyword) || strings.Contains(record.Category, rep.Keyword) || strings.Contains(record.Note, rep.Keyword) {
+				result = append(result, record)
+			}
+		}
+		RespondSuccess(w, http.StatusOK, "搜索成功", result)
 		return
 	}
 	Records := store.GetRecordsByUserID(rep.UserID)
@@ -136,7 +156,7 @@ func ShowRecord2(w http.ResponseWriter, r *http.Request) {
 				RespondError(w, http.StatusForbidden, "无权访问记录")
 				return
 			}
-			record, err2 := store.ShowRecord(Records[i].ID)
+			record, err2 := store.ShowRecord1(Records[i].ID)
 			if err2 != nil {
 				RespondError(w, http.StatusBadRequest, err2.Error())
 				return
@@ -150,8 +170,9 @@ func ShowRecord2(w http.ResponseWriter, r *http.Request) {
 
 func DeleteRecord1(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		ID     int `json:"id"`
-		UserID int `json:"user_id"`
+		ID     int    `json:"id"`
+		UserID int    `json:"user_id"`
+		Sort   string `json:"sort"`
 	}
 	err := json.NewDecoder(r.Body).Decode(&req)
 	if err != nil {
@@ -165,7 +186,7 @@ func DeleteRecord1(w http.ResponseWriter, r *http.Request) {
 	Records := store.GetRecordsByUserID(req.UserID)
 	for i := range Records {
 		if Records[i].ID == req.ID {
-			records1, err2 := store.DeleteRecord(Records[i].ID, req.UserID)
+			records1, err2 := store.DeleteRecord(Records[i].ID, req.UserID, req.Sort)
 			if err2 != nil {
 				RespondError(w, http.StatusBadRequest, err2.Error())
 				return
