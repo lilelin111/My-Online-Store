@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>记账本</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div id="app">
+        <div id="auth-section">
+            <div class="auth-container">
+                <h1>记账本</h1>
+                <div class="auth-tabs">
+                    <button class="tab-btn active" onclick="switchTab('register')">注册</button>
+                    <button class="tab-btn" onclick="switchTab('login')">登录</button>
+                </div>
+                
+                <div id="register-form" class="form-content">
+                    <input type="text" id="reg-name" placeholder="用户名">
+                    <input type="password" id="reg-password" placeholder="密码（至少8位，包含字母、数字、特殊符号）">
+                    <button class="submit-btn" onclick="register()">注册</button>
+                </div>
+                
+                <div id="login-form" class="form-content hidden">
+                    <input type="text" id="login-name" placeholder="用户名">
+                    <input type="password" id="login-password" placeholder="密码">
+                    <button class="submit-btn" onclick="login()">登录</button>
+                </div>
+                
+                <p id="auth-message" class="message"></p>
+            </div>
+        </div>
+
+        <div id="dashboard-section" class="hidden">
+            <header>
+                <h1>记账本</h1>
+                <div class="user-info">
+                    <span id="current-user"></span>
+                    <button class="logout-btn" onclick="logout()">退出</button>
+                </div>
+            </header>
+
+            <nav class="main-nav">
+                <button class="nav-btn active" onclick="switchView('add')">添加记录</button>
+                <button class="nav-btn" onclick="switchView('list')">查看记录</button>
+            </nav>
+
+            <div id="add-view" class="view-content">
+                <div class="form-container">
+                    <h2>添加记录</h2>
+                    
+                    <div class="form-group">
+                        <label>类型</label>
+                        <div class="radio-group">
+                            <label><input type="radio" name="sort" value="Income" checked> 收入</label>
+                            <label><input type="radio" name="sort" value="Expense"> 支出</label>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>分类</label>
+                        <select id="category-select">
+                            <option value="">请选择分类</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label>金额</label>
+                        <input type="number" id="amount-input" placeholder="请输入金额" step="0.01" min="0.01">
+                    </div>
+
+                    <div class="form-group">
+                        <label>备注</label>
+                        <input type="text" id="note-input" placeholder="请输入备注">
+                    </div>
+
+                    <button class="submit-btn" onclick="createRecord()">保存</button>
+                    <p id="add-message" class="message"></p>
+                </div>
+            </div>
+
+            <div id="list-view" class="view-content hidden">
+                <div class="list-container">
+                    <h2>记录列表</h2>
+                    
+                    <div class="search-bar">
+                        <input type="text" id="search-input" placeholder="搜索备注..." onkeyup="filterRecords()">
+                        <select id="filter-sort" onchange="filterRecords()">
+                            <option value="">全部</option>
+                            <option value="Income">收入</option>
+                            <option value="Expense">支出</option>
+                        </select>
+                    </div>
+
+                    <table id="records-table">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>类型</th>
+                                <th>分类</th>
+                                <th>金额</th>
+                                <th>备注</th>
+                                <th>日期</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        </tbody>
+                    </table>
+                    
+                    <p id="list-message" class="message"></p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>
