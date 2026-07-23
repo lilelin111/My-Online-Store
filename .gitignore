@@ -19,6 +19,8 @@ store/users.json
 # Compiled binaries
 *.exe
 *.exe~
+# Nested project directory (duplicate source + deployment artifacts)
+git/
 # OS files
 Thumbs.db
 .DS_Store
