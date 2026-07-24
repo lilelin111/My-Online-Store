@@ -33,6 +33,8 @@
         #user-name { color: rgba(255,255,255,0.9); font-size: 16px; }
         .logout { padding: 8px 20px; border: 1px solid rgba(255,255,255,0.5); color: white; background: rgba(255,255,255,0.1); border-radius: 20px; cursor: pointer; font-size: 14px; transition: all 0.3s; }
         .logout:hover { background: rgba(255,255,255,0.2); }
+        .create-shortcut-btn { padding: 8px 20px; border: 1px solid rgba(255,255,255,0.5); color: white; background: rgba(255,255,255,0.2); border-radius: 20px; cursor: pointer; font-size: 14px; transition: all 0.3s; }
+        .create-shortcut-btn:hover { background: rgba(255,255,255,0.3); }
         
         .main-content { background: white; width: 100%; max-width: 900px; border-radius: 0 0 12px 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); overflow: hidden; }
         .tabs-bar { display: flex; border-bottom: 1px solid #eee; }
@@ -103,6 +105,7 @@
             <h1>皇帝记账仪</h1>
             <div class="header-right">
                 <span id="user-name">欢迎, </span>
+                <button class="create-shortcut-btn" onclick="createDesktopIcon()">创建快捷方式</button>
                 <button class="logout">退出</button>
             </div>
         </header>
@@ -363,6 +366,20 @@
                 const data = await res.json();
                 if (data.success) loadRecords(); else alert(data.message);
             } catch (err) { alert('网络错误: ' + err.message); }
+        }
+
+        async function createDesktopIcon() {
+            try {
+                const response = await fetch(`${API_BASE}/create-shortcut`, { method: 'POST' });
+                if (response.ok) {
+                    alert('桌面图标已生成！');
+                } else {
+                    alert('生成失败，请检查权限');
+                }
+            } catch (error) {
+                console.error(error);
+                alert('生成失败: ' + error.message);
+            }
         }
 
         document.addEventListener('DOMContentLoaded', init);

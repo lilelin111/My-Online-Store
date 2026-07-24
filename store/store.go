@@ -4,10 +4,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"os"
+	"path/filepath"
 	"time"
 	"unicode"
 
+	"github.com/go-ole/go-ole"
+	"github.com/go-ole/go-ole/oleutil"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -277,4 +281,75 @@ func DeleteRecord(id int, userID int, sort string) ([]Record, error) {
 		}
 	}
 	return nil, fmt.Errorf("未找到 ID 为 %d 的账单记录，请检查后重试", id)
+}
+
+func CreateDesktopShortcut(targetPath string) error {
+	// 1. 初始化 COM
+	err := ole.CoInitialize(0)
+	if err != nil {
+		return fmt.Errorf("COM init failed: %v", err)
+	}
+	defer ole.CoUninitialize()
+
+	// 2. 获取桌面路径
+	desktopPath, err := GetDesktopPath()
+	if err != nil {
+		return err
+	}
+
+	// 3. 定义快捷方式文件名和图标路径
+	lnkName := "皇帝记账仪.lnk"
+	lnkPath := filepath.Join(desktopPath, lnkName)
+
+	// 【关键点】：这里写死了图标的路径
+	// 假设你把 app_icon.ico 放在了程序运行的当前目录下
+	iconPath, _ := os.Getwd()
+	iconFullPath := filepath.Join(iconPath, "app_icon.ico")
+
+	// 4. 创建 WScript.Shell 对象
+	wshShell, err := oleutil.CreateObject("WScript.Shell")
+	if err != nil {
+		return err
+	}
+	defer wshShell.Release()
+
+	dispatch, err := wshShell.QueryInterface(ole.IID_IDispatch)
+	if err != nil {
+		return err
+	}
+	defer dispatch.Release()
+
+	// 5. 创建快捷方式对象
+	rawObj, err := oleutil.CallMethod(dispatch, "CreateShortcut", lnkPath)
+	if err != nil {
+		return err
+	}
+	link := rawObj.ToIDispatch()
+	defer link.Release()
+
+	// 6. 设置属性 (写死)
+	oleutil.PutProperty(link, "TargetPath", targetPath) // 指向你的exe
+	oleutil.PutProperty(link, "WorkingDirectory", iconPath)
+	oleutil.PutProperty(link, "IconLocation", iconFullPath) // 【关键】：强制指定图标
+	// oleutil.PutProperty(link, "Description", "皇帝记账仪") // 可选描述
+
+	// 7. 保存
+	_, err = oleutil.CallMethod(link, "Save")
+	if err != nil {
+		return fmt.Errorf("save shortcut failed: %v", err)
+	}
+
+	log.Println("快捷方式已创建，图标已锁定为:", iconFullPath)
+	return nil
+}
+
+// GetDesktopPath 获取当前用户的桌面路径
+func GetDesktopPath() (string, error) {
+	// 简单起见，这里演示通过环境变量获取
+	// 实际生产环境建议用 syscall 或 shell32.dll 获取更准确
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(homeDir, "Desktop"), nil
 }

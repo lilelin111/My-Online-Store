@@ -1,12 +1,17 @@
-﻿package main
+package main
 
 import (
 	"encoding/json"
 	"fmt"
 	"myproject/store"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
+
+	"github.com/go-ole/go-ole"
+	"github.com/go-ole/go-ole/oleutil"
 )
 
 type Response struct {
@@ -63,7 +68,7 @@ func Register(w http.ResponseWriter, r *http.Request) {
 		RespondError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	RespondSuccess(w, http.StatusOK, "注冊成功", user)
+	RespondSuccess(w, http.StatusOK, "ע�Գɹ�", user)
 }
 
 func Login(w http.ResponseWriter, r *http.Request) {
@@ -78,7 +83,7 @@ func Login(w http.ResponseWriter, r *http.Request) {
 		RespondError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	RespondSuccess(w, http.StatusOK, "登录成功", map[string]interface{}{
+	RespondSuccess(w, http.StatusOK, "��¼�ɹ�", map[string]interface{}{
 		"id":   user.ID,
 		"name": user.Name,
 	})
@@ -92,7 +97,7 @@ func CreateRecord1(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if req.UserID <= 0 {
-		RespondError(w, http.StatusBadRequest, "用户ID不能为空")
+		RespondError(w, http.StatusBadRequest, "�û�ID����Ϊ��")
 		return
 	}
 	record, err := store.CreateRecord(req.UserID, req.Sort, req.Category, req.Amount, req.Note, req.Date)
@@ -100,7 +105,7 @@ func CreateRecord1(w http.ResponseWriter, r *http.Request) {
 		RespondError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	RespondSuccess(w, http.StatusOK, "创建成功", record)
+	RespondSuccess(w, http.StatusOK, "�����ɹ�", record)
 }
 
 func ShowRecord1(w http.ResponseWriter, r *http.Request) {
@@ -113,11 +118,11 @@ func ShowRecord1(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if req.UserID <= 0 {
-		RespondError(w, http.StatusBadRequest, "用户ID不能为空")
+		RespondError(w, http.StatusBadRequest, "�û�ID����Ϊ��")
 		return
 	}
 	Records := store.GetRecordsByUserID(req.UserID)
-	RespondSuccess(w, http.StatusOK, "获取成功", Records)
+	RespondSuccess(w, http.StatusOK, "��ȡ�ɹ�", Records)
 }
 
 func ShowRecord2(w http.ResponseWriter, r *http.Request) {
@@ -137,23 +142,23 @@ func ShowRecord2(w http.ResponseWriter, r *http.Request) {
 		for _, record := range records {
 			sortName := record.Sort
 			if record.Sort == "Income" {
-				sortName = "收入"
+				sortName = "����"
 			}
 			if record.Sort == "Expense" {
-				sortName = "支出"
+				sortName = "֧��"
 			}
 			if strings.Contains(sortName, rep.Keyword) || strings.Contains(record.Category, rep.Keyword) || strings.Contains(record.Note, rep.Keyword) {
 				result = append(result, record)
 			}
 		}
-		RespondSuccess(w, http.StatusOK, "搜索成功", result)
+		RespondSuccess(w, http.StatusOK, "�����ɹ�", result)
 		return
 	}
 	Records := store.GetRecordsByUserID(rep.UserID)
 	for i := range Records {
 		if Records[i].ID == rep.ID {
 			if Records[i].UserID != rep.UserID {
-				RespondError(w, http.StatusForbidden, "无权访问记录")
+				RespondError(w, http.StatusForbidden, "��Ȩ���ʼ�¼")
 				return
 			}
 			record, err2 := store.ShowRecord1(Records[i].ID)
@@ -161,11 +166,11 @@ func ShowRecord2(w http.ResponseWriter, r *http.Request) {
 				RespondError(w, http.StatusBadRequest, err2.Error())
 				return
 			}
-			RespondSuccess(w, http.StatusOK, "获取成功", record)
+			RespondSuccess(w, http.StatusOK, "��ȡ�ɹ�", record)
 			return
 		}
 	}
-	RespondError(w, http.StatusNotFound, "未找到ID为"+strconv.Itoa(rep.ID)+"的记录")
+	RespondError(w, http.StatusNotFound, "δ�ҵ�IDΪ"+strconv.Itoa(rep.ID)+"�ļ�¼")
 }
 
 func DeleteRecord1(w http.ResponseWriter, r *http.Request) {
@@ -180,7 +185,7 @@ func DeleteRecord1(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if req.UserID <= 0 {
-		RespondError(w, http.StatusBadRequest, "用户ID不能为空")
+		RespondError(w, http.StatusBadRequest, "�û�ID����Ϊ��")
 		return
 	}
 	Records := store.GetRecordsByUserID(req.UserID)
@@ -191,25 +196,62 @@ func DeleteRecord1(w http.ResponseWriter, r *http.Request) {
 				RespondError(w, http.StatusBadRequest, err2.Error())
 				return
 			}
-			RespondSuccess(w, http.StatusOK, "删除成功", records1)
+			RespondSuccess(w, http.StatusOK, "ɾ���ɹ�", records1)
 			return
 		}
 	}
-	RespondError(w, http.StatusNotFound, "未找到ID为"+strconv.Itoa(req.ID)+"的记录")
+	RespondError(w, http.StatusNotFound, "δ�ҵ�IDΪ"+strconv.Itoa(req.ID)+"�ļ�¼")
+}
+
+func createProjectShortcut() {
+	ole.CoInitializeEx(0, ole.COINIT_APARTMENTTHREADED|ole.COINIT_SPEED_OVER_MEMORY)
+	defer ole.CoUninitialize()
+	shellObj, err := oleutil.CreateObject("WScript.Shell")
+	if err != nil {
+		fmt.Println("创建 COM 对象失败:", err)
+		return
+	}
+	defer shellObj.Release()
+
+	wshell, err := shellObj.QueryInterface(ole.IID_IDispatch)
+	if err != nil {
+		fmt.Println("获取接口失败:", err)
+		return
+	}
+	defer wshell.Release()
+	currentDir, _ := os.Getwd()
+	batPath := filepath.Join(currentDir, "start.bat")
+	homeDir, _ := os.UserHomeDir()
+	desktopPath := filepath.Join(homeDir, "Desktop", "皇帝记账仪.lnk")
+	shortcut, err := oleutil.CallMethod(wshell, "CreateShortcut", desktopPath)
+	if err != nil {
+		fmt.Println("创建快捷方式失败:", err)
+		return
+	}
+	dispatch := shortcut.ToIDispatch()
+	defer dispatch.Release()
+	oleutil.PutProperty(dispatch, "TargetPath", batPath)
+	oleutil.PutProperty(dispatch, "WorkingDirectory", currentDir)
+	oleutil.PutProperty(dispatch, "Description", "一键启动前后端服务")
+	_, err = oleutil.CallMethod(dispatch, "Save")
+	if err != nil {
+		fmt.Println("保存快捷方式失败:", err)
+		return
+	}
+	fmt.Println("🎉 桌面快捷方式创建成功！")
 }
 
 func main() {
 	r := http.NewServeMux()
 
-	// API 路由
 	r.HandleFunc("/api/login", Login)
 	r.HandleFunc("/api/register", Register)
 	r.HandleFunc("/api/CreateRecord", CreateRecord1)
 	r.HandleFunc("/api/ShowRecord1", ShowRecord1)
 	r.HandleFunc("/api/DeleteRecord1", DeleteRecord1)
 	r.HandleFunc("/api/ShowRecord2", ShowRecord2)
+	createProjectShortcut()
 
-	// 静态文件与前端页面托管
 	r.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("web/static"))))
 	r.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		http.ServeFile(w, r, "web/static/index_new.html")
